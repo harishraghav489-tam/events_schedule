@@ -1,5 +1,5 @@
 window.TEAM_SCHEDULE_SHARED_CONFIG = {
-  enabled: false,
+  enabled: true,
   provider: "supabase",
   boardId: "main",
   supabase: {
