@@ -1,20 +1,14 @@
 // ================= CONFIG =================
-let supabase;
+// ================= SUPABASE =================
+const config = window.TEAM_SCHEDULE_SHARED_CONFIG;
 
-if (!window.__SUPABASE__) {
-  supabase = window.supabase.createClient(
-    config.supabase.url,
-    config.supabase.anonKey
-  );
-  window.__SUPABASE__ = supabase;
-} else {
-  supabase = window.__SUPABASE__;
-}
-
-const supabase = window.supabase.createClient(
+// NEVER redeclare
+const supabase = window.__SUPABASE_CLIENT__ || window.supabase.createClient(
   config.supabase.url,
   config.supabase.anonKey
 );
+
+window.__SUPABASE_CLIENT__ = supabase;
 
 let state = {
   events: [],
