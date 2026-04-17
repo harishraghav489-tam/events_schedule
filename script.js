@@ -1,24 +1,38 @@
 // ================= CONFIG =================
+const STORAGE_KEY = "team-schedule-maker-v1";
+const APP_TIME_ZONE = "Asia/Kolkata";
+const DEFAULT_REMINDER_DAYS = [7, 3, 1];
+
 // ================= SUPABASE =================
 const config = window.TEAM_SCHEDULE_SHARED_CONFIG;
 
-// NEVER redeclare
-const supabase = window.__SUPABASE_CLIENT__ || window.supabase.createClient(
+const supabase = window.supabase.createClient(
   config.supabase.url,
   config.supabase.anonKey
 );
 
-window.__SUPABASE_CLIENT__ = supabase;
-
-let state = {
-  events: [],
-  teams: []
+// ================= SEED =================
+const seedState = {
+  settings: { referenceDate: new Date().toISOString() },
+  reminderLog: {},
+  feed: [],
+  teams: [],
+  events: []
 };
+
+// ================= STATE =================
+let state = structuredClone(seedState);
 
 // ================= INIT =================
 init();
 
 async function init() {
+  state = await loadState();
+  renderAll();
+}
+
+// ================= LOAD =================
+async function loadState() {
   try {
     const { data } = await supabase
       .from(config.supabase.table)
@@ -27,17 +41,26 @@ async function init() {
       .single();
 
     if (data && data.shared_state) {
-      state = data.shared_state;
+      return data.shared_state;
     }
-  } catch (err) {
-    console.log("No previous data");
-  }
 
-  renderAll();
+    // Insert seed if empty
+    await supabase.from(config.supabase.table).insert({
+      board_id: config.boardId,
+      shared_state: seedState,
+      updated_at: new Date()
+    });
+
+    return structuredClone(seedState);
+
+  } catch (err) {
+    console.error("Load error:", err);
+    return structuredClone(seedState);
+  }
 }
 
 // ================= SAVE =================
-async function save() {
+async function persistState() {
   await supabase.from(config.supabase.table).upsert({
     board_id: config.boardId,
     shared_state: state,
@@ -45,92 +68,37 @@ async function save() {
   });
 }
 
-// ================= UPDATE =================
-function update() {
-  save();
-  renderAll();
-}
-
-// ================= EVENT MODAL =================
-const eventDialog = document.getElementById("eventDialog");
-const openEventBtn = document.getElementById("openEventModalBtn");
-const eventForm = document.getElementById("eventForm");
-
-openEventBtn.onclick = () => eventDialog.showModal();
-
-eventForm.onsubmit = function (e) {
-  e.preventDefault();
-
-  const name = document.getElementById("eventName").value;
+// ================= EVENTS =================
+function addEvent() {
+  const name = prompt("Enter event name");
+  if (!name) return;
 
   state.events.push({
     id: crypto.randomUUID(),
-    name
+    name,
+    milestones: [],
+    assignments: []
   });
 
-  eventDialog.close();
-  eventForm.reset();
   update();
-};
-
-// ================= TEAM MODAL =================
-const teamDialog = document.getElementById("teamDialog");
-const openTeamBtn = document.getElementById("openTeamModalBtn");
-const teamForm = document.getElementById("teamForm");
-
-openTeamBtn.onclick = () => teamDialog.showModal();
-
-let tempMembers = [];
-
-document.getElementById("addMemberBtn").onclick = () => {
-  const input = document.getElementById("memberInput");
-  if (!input.value) return;
-
-  tempMembers.push({
-    id: crypto.randomUUID(),
-    name: input.value
-  });
-
-  input.value = "";
-  renderTempMembers();
-};
-
-function renderTempMembers() {
-  const container = document.getElementById("memberChipList");
-
-  container.innerHTML = tempMembers.map(m => `
-    <div class="chip">
-      ${m.name}
-      <button onclick="removeTempMember('${m.id}')">×</button>
-    </div>
-  `).join("");
 }
 
-function removeTempMember(id) {
-  tempMembers = tempMembers.filter(m => m.id !== id);
-  renderTempMembers();
+function deleteEvent(id) {
+  state.events = state.events.filter(e => e.id !== id);
+  update();
 }
 
-teamForm.onsubmit = function (e) {
-  e.preventDefault();
-
-  const name = document.getElementById("teamName").value;
+// ================= TEAMS =================
+function addTeam() {
+  const name = prompt("Enter team name");
+  if (!name) return;
 
   state.teams.push({
     id: crypto.randomUUID(),
     name,
-    members: tempMembers
+    members: []
   });
 
-  tempMembers = [];
-  teamDialog.close();
-  teamForm.reset();
-  update();
-};
-
-// ================= DELETE =================
-function deleteEvent(id) {
-  state.events = state.events.filter(e => e.id !== id);
   update();
 }
 
@@ -139,21 +107,12 @@ function deleteTeam(id) {
   update();
 }
 
-function deleteMember(teamId, memberId) {
-  const team = state.teams.find(t => t.id === teamId);
-  if (!team) return;
-
-  team.members = team.members.filter(m => m.id !== memberId);
-  update();
-}
-
-// ================= ADD MEMBER =================
-function addMemberToTeam(teamId) {
+// ================= MEMBERS =================
+function addMember(teamId) {
   const name = prompt("Enter member name");
   if (!name) return;
 
   const team = state.teams.find(t => t.id === teamId);
-
   team.members.push({
     id: crypto.randomUUID(),
     name
@@ -162,70 +121,67 @@ function addMemberToTeam(teamId) {
   update();
 }
 
+function deleteMember(teamId, memberId) {
+  const team = state.teams.find(t => t.id === teamId);
+  team.members = team.members.filter(m => m.id !== memberId);
+  update();
+}
+
+// ================= UPDATE =================
+function update() {
+  persistState();
+  renderAll();
+}
+
 // ================= RENDER =================
 function renderAll() {
   renderEvents();
   renderTeams();
 }
 
-// ================= RENDER EVENTS =================
+// ================= EVENTS UI =================
 function renderEvents() {
   const container = document.getElementById("eventGrid");
-  container.innerHTML = "";
+  if (!container) return;
 
-  if (state.events.length === 0) {
-    container.innerHTML = `<div class="empty-state">No events yet</div>`;
+  if (!state.events.length) {
+    container.innerHTML = "<p>No events yet</p>";
     return;
   }
 
-  state.events.forEach(event => {
-    const div = document.createElement("div");
-    div.className = "event-card";
-
-    div.innerHTML = `
-      <h3>${event.name}</h3>
-      <button class="btn btn--ghost" onclick="deleteEvent('${event.id}')">Delete</button>
-    `;
-
-    container.appendChild(div);
-  });
+  container.innerHTML = state.events.map(e => `
+    <div class="card" data-tilt>
+      <h3>${e.name}</h3>
+      <button onclick="deleteEvent('${e.id}')">❌ Delete</button>
+    </div>
+  `).join("");
 }
 
-// ================= RENDER TEAMS =================
+// ================= TEAMS UI =================
 function renderTeams() {
   const container = document.getElementById("teamGrid");
-  container.innerHTML = "";
+  if (!container) return;
 
-  if (state.teams.length === 0) {
-    container.innerHTML = `<div class="empty-state">No teams yet</div>`;
+  if (!state.teams.length) {
+    container.innerHTML = "<p>No teams yet</p>";
     return;
   }
 
-  state.teams.forEach(team => {
-    const div = document.createElement("div");
-    div.className = "team-card";
+  container.innerHTML = state.teams.map(t => `
+    <div class="card" data-tilt>
+      <h3>${t.name}</h3>
 
-    div.innerHTML = `
-      <h3>${team.name}</h3>
+      <button onclick="addMember('${t.id}')">+ Add Member</button>
+      <button onclick="deleteTeam('${t.id}')">❌ Delete</button>
 
-      <button class="btn btn--secondary" onclick="addMemberToTeam('${team.id}')">
-        + Add Member
-      </button>
-
-      <button class="btn btn--ghost" onclick="deleteTeam('${team.id}')">
-        Delete Team
-      </button>
-
-      <div class="chip-list">
-        ${team.members.map(member => `
-          <div class="chip">
-            ${member.name}
-            <button onclick="deleteMember('${team.id}', '${member.id}')">×</button>
+      <div>
+        ${t.members.map(m => `
+          <div>
+            ${m.name}
+            <button onclick="deleteMember('${t.id}','${m.id}')">❌</button>
           </div>
         `).join("")}
       </div>
-    `;
-
-    container.appendChild(div);
-  });
+    </div>
+  `).join("");
 }
