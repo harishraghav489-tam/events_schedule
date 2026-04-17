@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="A schedule maker for team competitions, deadlines, reminders, and submission tracking."
+    />
+    <meta name="theme-color" content="#0d1324" />
+    <title>Team Competition Schedule Maker</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <div class="ambient-grid" aria-hidden="true"></div>
+      <div class="ambient-orb ambient-orb--one" aria-hidden="true"></div>
+      <div class="ambient-orb ambient-orb--two" aria-hidden="true"></div>
+      <div class="cursor-glow" id="cursorGlow" aria-hidden="true"></div>
+
+      <header class="hero panel" data-tilt>
+        <div class="hero__copy">
+          <p class="eyebrow">Team Schedule Command Center</p>
+          <h1>Deadlines, events, teams, and reminders in one live board.</h1>
+          <p class="hero__text">
+            Starting from <span id="todayText"></span>, this board separates who
+            is joining each event, when registration closes, when submissions are
+            due, and when the event happens. Browser reminders can alert you
+            before each deadline.
+          </p>
+
+          <div class="hero__actions">
+            <button class="btn btn--primary" id="enableNotificationsBtn" type="button">
+              Enable Reminders
+            </button>
+            <button class="btn btn--secondary" id="openEventModalBtn" type="button">
+              + Add Event
+            </button>
+            <button class="btn btn--ghost" id="openTeamModalBtn" type="button">
+              + Add Team
+            </button>
+          </div>
+
+          <div class="hero__metrics" id="heroMetrics"></div>
+        </div>
+
+        <aside class="hero__focus">
+          <div class="focus-card">
+            <p class="focus-card__label">Next deadline</p>
+            <div id="nextDeadlineCard"></div>
+          </div>
+
+          <div class="focus-card focus-card--stacked">
+            <p class="focus-card__label">Reminder Defaults</p>
+            <div class="pill-row">
+              <span class="pill">7 days before</span>
+              <span class="pill">3 days before</span>
+              <span class="pill">1 day before</span>
+            </div>
+            <p class="focus-card__hint">
+              Keep the page open or pinned in your browser to catch live reminder
+              popups.
+            </p>
+          </div>
+
+          <div class="focus-card">
+            <p class="focus-card__label">Shared Sync</p>
+            <div id="syncStatusCard"></div>
+          </div>
+        </aside>
+      </header>
+
+      <main class="dashboard">
+        <section class="panel panel--timeline">
+          <div class="panel__header">
+            <div>
+              <p class="panel__eyebrow">Live Calendar</p>
+              <h2>Upcoming timeline</h2>
+            </div>
+
+            <div class="filter-bar" id="timelineFilters">
+              <button class="filter-chip is-active" data-filter="all" type="button">
+                All
+              </button>
+              <button class="filter-chip" data-filter="dueSoon" type="button">
+                Due Soon
+              </button>
+              <button class="filter-chip" data-filter="registration" type="button">
+                Registration
+              </button>
+              <button class="filter-chip" data-filter="submission" type="button">
+                Submission
+              </button>
+              <button class="filter-chip" data-filter="event" type="button">
+                Event Day
+              </button>
+            </div>
+          </div>
+
+          <div class="timeline-grid" id="timelineList"></div>
+        </section>
+
+        <section class="panel">
+          <div class="panel__header">
+            <div>
+              <p class="panel__eyebrow">Assignments</p>
+              <h2>Event atlas</h2>
+            </div>
+          </div>
+          <div class="event-grid" id="eventGrid"></div>
+        </section>
+
+        <section class="panel">
+          <div class="panel__header">
+            <div>
+              <p class="panel__eyebrow">Check In</p>
+              <h2>Status requests</h2>
+            </div>
+          </div>
+          <div class="status-list" id="statusList"></div>
+        </section>
+
+        <section class="panel">
+          <div class="panel__header">
+            <div>
+              <p class="panel__eyebrow">Teams</p>
+              <h2>People by squad</h2>
+            </div>
+          </div>
+          <div class="team-grid" id="teamGrid"></div>
+        </section>
+
+        <section class="panel">
+          <div class="panel__header">
+            <div>
+              <p class="panel__eyebrow">Reminder Feed</p>
+              <h2>Alerts and notes</h2>
+            </div>
+          </div>
+          <div class="notification-feed" id="notificationFeed"></div>
+        </section>
+      </main>
+
+      <button class="fab" id="toggleQuickAdd" type="button" aria-label="Open quick add menu">
+        +
+      </button>
+      <div class="fab-menu" id="quickAddMenu" hidden>
+        <button class="btn btn--secondary" data-open-dialog="event" type="button">
+          Add Event
+        </button>
+        <button class="btn btn--secondary" data-open-dialog="team" type="button">
+          Add Team
+        </button>
+      </div>
+
+      <dialog class="dialog" id="eventDialog">
+        <form class="dialog__form" id="eventForm">
+          <div class="dialog__header">
+            <div>
+              <p class="panel__eyebrow">Builder</p>
+              <h3 id="eventDialogTitle">Add Event</h3>
+            </div>
+            <button class="icon-btn" data-close-dialog="eventDialog" type="button" aria-label="Close event dialog">
+              ×
+            </button>
+          </div>
+
+          <input id="eventId" name="eventId" type="hidden" />
+
+          <label class="field">
+            <span>Event name</span>
+            <input id="eventName" name="eventName" type="text" placeholder="Brinhack 1.0" required />
+          </label>
+
+          <label class="field">
+            <span>Overview</span>
+            <textarea
+              id="eventOverview"
+              name="eventOverview"
+              rows="3"
+              placeholder="What is this event about?"
+            ></textarea>
+          </label>
+
+          <div class="field-grid">
+            <label class="field">
+              <span>Accent theme</span>
+              <select id="eventAccent" name="eventAccent">
+                <option value="aqua">Aqua</option>
+                <option value="amber">Amber</option>
+                <option value="coral">Coral</option>
+                <option value="violet">Violet</option>
+                <option value="mint">Mint</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span>Reminder days</span>
+              <input
+                id="eventReminders"
+                name="eventReminders"
+                type="text"
+                value="7,3,1"
+                placeholder="7,3,1"
+              />
+            </label>
+          </div>
+
+          <div class="builder-block">
+            <div class="builder-block__header">
+              <div>
+                <p class="panel__eyebrow">Timeline</p>
+                <h4>Milestones</h4>
+              </div>
+              <button class="btn btn--ghost btn--small" id="addMilestoneBtn" type="button">
+                + Add milestone
+              </button>
+            </div>
+            <div class="milestone-builder" id="milestoneBuilder"></div>
+          </div>
+
+          <div class="builder-block">
+            <div class="builder-block__header">
+              <div>
+                <p class="panel__eyebrow">Assignments</p>
+                <h4>Attach teams</h4>
+              </div>
+            </div>
+            <div class="checkbox-grid" id="eventTeamOptions"></div>
+          </div>
+
+          <div class="dialog__actions">
+            <button class="btn btn--ghost" data-close-dialog="eventDialog" type="button">
+              Cancel
+            </button>
+            <button class="btn btn--primary" type="submit">Save Event</button>
+          </div>
+        </form>
+      </dialog>
+
+      <dialog class="dialog" id="teamDialog">
+        <form class="dialog__form" id="teamForm">
+          <div class="dialog__header">
+            <div>
+              <p class="panel__eyebrow">Builder</p>
+              <h3 id="teamDialogTitle">Add Team</h3>
+            </div>
+            <button class="icon-btn" data-close-dialog="teamDialog" type="button" aria-label="Close team dialog">
+              ×
+            </button>
+          </div>
+
+          <input id="teamId" name="teamId" type="hidden" />
+
+          <label class="field">
+            <span>Team name</span>
+            <input id="teamName" name="teamName" type="text" placeholder="Solutions Team 1" required />
+          </label>
+
+          <div class="field">
+            <span>Members</span>
+            <div class="member-builder">
+              <div class="member-builder__input-row">
+                <input id="memberInput" type="text" placeholder="Type a member name and add it" />
+                <button class="btn btn--secondary btn--small" id="addMemberBtn" type="button">
+                  Add member
+                </button>
+              </div>
+              <div class="chip-list" id="memberChipList"></div>
+            </div>
+          </div>
+
+          <div class="builder-block">
+            <div class="builder-block__header">
+              <div>
+                <p class="panel__eyebrow">Assignments</p>
+                <h4>Select events for this team</h4>
+              </div>
+            </div>
+            <div class="checkbox-grid" id="teamEventOptions"></div>
+          </div>
+
+          <div class="dialog__actions">
+            <button class="btn btn--ghost" data-close-dialog="teamDialog" type="button">
+              Cancel
+            </button>
+            <button class="btn btn--primary" type="submit">Save Team</button>
+          </div>
+        </form>
+      </dialog>
+
+      <template id="milestoneRowTemplate">
+        <div class="milestone-row" data-milestone-row>
+          <div class="field-grid field-grid--wide">
+            <label class="field">
+              <span>Milestone label</span>
+              <input data-milestone="label" type="text" placeholder="Registration closes" required />
+            </label>
+
+            <label class="field">
+              <span>Type</span>
+              <select data-milestone="type">
+                <option value="registration">Registration</option>
+                <option value="submission">Submission</option>
+                <option value="event">Event</option>
+                <option value="announcement">Announcement</option>
+                <option value="evaluation">Evaluation</option>
+                <option value="other">Other</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="field-grid field-grid--wide">
+            <label class="field">
+              <span>Start date</span>
+              <input data-milestone="start" type="datetime-local" />
+            </label>
+
+            <label class="field">
+              <span>End date</span>
+              <input data-milestone="end" type="datetime-local" />
+            </label>
+          </div>
+
+          <div class="field-grid field-grid--wide">
+            <label class="field">
+              <span>Short note</span>
+              <input data-milestone="note" type="text" placeholder="Prototype MVP upload" />
+            </label>
+
+            <div class="field field--action">
+              <span>Remove</span>
+              <button class="btn btn--ghost btn--small" data-remove-milestone type="button">
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      </template>
+
+      <div class="toast-host" id="toastHost" aria-live="polite" aria-atomic="true"></div>
+    </div>
+
+    <noscript>
+      <div class="noscript-banner">
+        This schedule maker needs JavaScript enabled to track events, teams, and reminders.
+      </div>
+    </noscript>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="./shared-config.js"></script>
+    <script src="./script.js"></script>
+  </body>
+</html>
