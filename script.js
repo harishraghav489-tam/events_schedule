@@ -1954,3 +1954,114 @@ function escapeHtml(value) {
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
 }
+
+// =============================
+// 🚀 ADD-ON PATCH (NON-DESTRUCTIVE)
+// =============================
+
+// Wait until DOM is fully ready
+window.addEventListener("DOMContentLoaded", () => {
+
+  // =============================
+  // ❌ DELETE EVENT (ADD-ONLY)
+  // =============================
+  if (typeof eventGrid !== "undefined" && eventGrid) {
+    eventGrid.addEventListener("click", function(e) {
+      const deleteBtn = e.target.closest("[data-delete-event]");
+      if (!deleteBtn) return;
+
+      const id = deleteBtn.dataset.deleteEvent;
+
+      if (!confirm("Delete this event?")) return;
+
+      state.events = state.events.filter(ev => ev.id !== id);
+
+      if (typeof persistState === "function") persistState();
+      if (typeof renderApp === "function") renderApp();
+    });
+  }
+
+  // =============================
+  // ❌ DELETE TEAM (ADD-ONLY)
+  // =============================
+  if (typeof teamGrid !== "undefined" && teamGrid) {
+    teamGrid.addEventListener("click", function(e) {
+      const deleteBtn = e.target.closest("[data-delete-team]");
+      if (!deleteBtn) return;
+
+      const id = deleteBtn.dataset.deleteTeam;
+
+      if (!confirm("Delete this team?")) return;
+
+      state.teams = state.teams.filter(t => t.id !== id);
+
+      // also remove from events
+      state.events = state.events.map(ev => ({
+        ...ev,
+        assignments: (ev.assignments || []).filter(a => a.teamId !== id)
+      }));
+
+      if (typeof persistState === "function") persistState();
+      if (typeof renderApp === "function") renderApp();
+    });
+  }
+
+  // =============================
+  // 👤 MEMBER REMOVE FIX (SAFE PATCH)
+  // =============================
+  if (typeof memberChipList !== "undefined" && memberChipList) {
+    memberChipList.addEventListener("click", function(e) {
+      const btn = e.target.closest("[data-remove-member]");
+      if (!btn) return;
+
+      const index = Number(btn.dataset.removeMember);
+
+      if (!Array.isArray(currentMemberDraft)) return;
+
+      currentMemberDraft.splice(index, 1);
+
+      if (typeof renderMemberDraft === "function") {
+        renderMemberDraft();
+      }
+    });
+  }
+
+});
+
+
+// =============================
+// 🎯 UI PATCH: AUTO-INJECT DELETE BUTTONS
+// (No change to your render functions)
+// =============================
+
+window.addEventListener("load", () => {
+
+  // Inject delete buttons into events
+  document.querySelectorAll("[data-edit-event]").forEach(btn => {
+    const id = btn.dataset.editEvent;
+
+    if (!btn.parentElement.querySelector("[data-delete-event]")) {
+      const del = document.createElement("button");
+      del.textContent = "Delete";
+      del.setAttribute("data-delete-event", id);
+      del.className = "btn btn--ghost btn--small";
+
+      btn.parentElement.appendChild(del);
+    }
+  });
+
+  // Inject delete buttons into teams
+  document.querySelectorAll("[data-edit-team]").forEach(btn => {
+    const id = btn.dataset.editTeam;
+
+    if (!btn.parentElement.querySelector("[data-delete-team]")) {
+      const del = document.createElement("button");
+      del.textContent = "Delete";
+      del.setAttribute("data-delete-team", id);
+      del.className = "btn btn--ghost btn--small";
+
+      btn.parentElement.appendChild(del);
+    }
+  });
+
+});
